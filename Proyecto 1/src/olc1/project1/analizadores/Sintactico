@@ -1,0 +1,204 @@
+package olc1.project1.analizadores;
+
+import java_cup.runtime.Symbol;
+import java.util.LinkedList;
+import olc1.project1.errors.SintaxError;
+
+import olc1.project1.instructions.Statement;
+import olc1.project1.instructions.Operation;
+import olc1.project1.instructions.Param;
+
+import olc1.project1.instructions.Declaration;
+import olc1.project1.instructions.Assignment;
+import olc1.project1.instructions.While;
+import olc1.project1.instructions.For;
+import olc1.project1.instructions.Repeat;
+import olc1.project1.instructions.Print;
+import olc1.project1.instructions.Println;
+import olc1.project1.instructions.Return;
+import olc1.project1.instructions.Procedure;
+import olc1.project1.instructions.Function;
+import olc1.project1.instructions.Case;
+import olc1.project1.instructions.Elif;
+import olc1.project1.instructions.If;
+import olc1.project1.instructions.Switch;
+import olc1.project1.instructions.Execute;
+
+import olc1.project1.instructions.EnumOperations;
+import olc1.project1.instructions.EnumTerminals;
+import olc1.project1.instructions.EnumUnitaryOperations;
+
+parser code 
+{:
+    public LinkedList<Statement> AST;
+    public LinkedList<SintaxError> errors = new LinkedList<>();
+
+    public void syntax_error(Symbol s){
+            if (s.value != null)
+                errors.add(new SintaxError(s.value.toString(), s.left, s.right));
+    } 
+    public void unrecovered_syntax_error(Symbol s) throws java.lang.Exception {
+            throw new Exception("Error irrecuperable en (linea, columna): " + s.left + ", " + s.right);
+    }  
+  
+:}
+
+terminal String MAJOR, MINOR, MAJOREQUALS, MINOREQUALS, EQUALS, NOTEQUALS, NOT, OR, AND;
+terminal String COMMA, DOTCOMMA, OPENQUESTION, CLOSEQUESTION;
+terminal String ADD, SUBSTRACT, MULTIPLY, DIVISION;
+terminal String POW, MODULE;
+terminal String PARSTART, PAREND;
+terminal String START, END;
+terminal String ARROW;
+terminal String ENTER, AS, WITH_VALUE;
+terminal String IF, THEN, ENDIF, ELSE, ELIF;
+terminal String SWITCH, DO, ENDSWITCH;
+terminal String FOR, TO, ENDFOR, WITHINCREMENTAL;
+terminal String WHILE, ENDWHILE;
+terminal String REPEAT, ENDREPEAT;
+terminal String RETURN, DEFPROCEDURE, ENDPROCEDURE, PARAMS;
+terminal String FUNCTION, ENDFUNCTION, EXEC;
+terminal String PRINT, PRINTLN;
+terminal String NUM, STR, BOOLEAN, CHAR;
+terminal String TYPEDEF, ID;
+terminal String SBRACKETOPEN, SBRACKETCLOSE;
+
+non terminal ini;
+
+non terminal LinkedList<Statement> statements;
+non terminal Statement statement;
+non terminal Operation expr;
+non terminal LinkedList<String> name_list;
+non terminal LinkedList<Param> params_list;
+non terminal LinkedList<Operation> args_list;
+non terminal Execute func;
+non terminal LinkedList<Elif> elifs;
+non terminal LinkedList<Case> cases;
+
+non terminal Operation aritmetic;
+non terminal Operation logical;
+non terminal Operation symbols;
+non terminal Operation unitary;
+
+non terminal If if;
+non terminal For for;
+
+non terminal Statement funcstatement;
+non terminal LinkedList<Statement> funcstatements;
+
+non terminal Statement definitionprocedure;
+
+non terminal Statement mainstatement;
+non terminal LinkedList<Statement> mainstatements;
+
+precedence left MAJOR, MINOR, MAJOREQUALS, MINOREQUALS, EQUALS, NOTEQUALS;
+precedence left AND, OR;
+precedence left ADD, SUBSTRACT;
+precedence left MULTIPLY, DIVISION;
+precedence left POW, MODULE;
+precedence left PARSTART;
+
+start with ini;
+
+ini ::= START mainstatements:s END {:parser.AST=s;:};
+
+mainstatements ::= mainstatements:s mainstatement:t {:RESULT=s; RESULT.add(t);:}
+| mainstatement:s {:RESULT = new LinkedList<Statement>(); RESULT.add(s);:};
+
+mainstatement ::= statement:s {:RESULT = s;:}
+| definitionprocedure:d {:RESULT = d;:};
+
+statements ::= statements:s statement:t {:RESULT=s; RESULT.add(t);:}
+| statement:s {:RESULT = new LinkedList<Statement>(); RESULT.add(s);:};
+
+statement ::= ENTER name_list:n AS TYPEDEF:t WITH_VALUE expr:e DOTCOMMA {:RESULT = new Declaration(n, t, e);:}
+| name_list:n ARROW expr:e DOTCOMMA {:RESULT = new Assignment(n, e);:}
+| if:i {:RESULT=i;:}
+| for:f {:RESULT=f;:}
+| WHILE expr:e DO statements:s ENDWHILE {:RESULT = new While(e, s);:}
+| WHILE expr:e DO ENDWHILE {:RESULT = new While(e);:}
+| REPEAT statements:s ENDREPEAT expr:e {:RESULT = new Repeat(s, e);:}
+| REPEAT ENDREPEAT expr:e {:RESULT = new Repeat(e);:}
+| EXEC func:f DOTCOMMA {:RESULT = f;:}
+| PRINT expr:e DOTCOMMA {:RESULT = new Print(e);:}
+| PRINTLN expr:e DOTCOMMA {:RESULT = new Println(e);:}
+| SWITCH expr:e DO cases:c ENDSWITCH {:RESULT = new Switch(e, c);:}
+| SWITCH expr:e DO cases:c ELSE THEN statements:s ENDSWITCH {:RESULT = new Switch(e, c, s);:}
+| error DOTCOMMA
+| error ENDIF
+| error ENDFOR
+| error ENDWHILE
+| error ENDPROCEDURE
+| error ENDFUNCTION
+| error ENDSWITCH
+| error ENDREPEAT expr;
+
+definitionprocedure ::=  DEFPROCEDURE ID:f statements:s ENDPROCEDURE {:RESULT = new Procedure(f, s);:}
+| DEFPROCEDURE ID:f PARAMS PARSTART params_list:p PAREND statements:s ENDPROCEDURE {:RESULT = new Procedure(f, p, s);:}
+| FUNCTION ID:f TYPEDEF:t funcstatements:s ENDFUNCTION {:RESULT = new Function(f, t, s);:}
+| FUNCTION ID:f TYPEDEF:t PARAMS PARSTART params_list:p PAREND funcstatements:s ENDFUNCTION {:RESULT = new Function(f, t, p, s);:};
+
+funcstatement ::= statement:s {:RESULT = s;:}
+| RETURN expr:e DOTCOMMA {:RESULT = new Return(e);:};
+
+funcstatements ::= funcstatements:s funcstatement:t {:RESULT=s; RESULT.add(t);:}
+| funcstatement:s {:RESULT = new LinkedList<Statement>(); RESULT.add(s);:};
+
+if ::= IF expr:e THEN statements:s ENDIF {:RESULT = new If(e, s);:}
+| IF expr:e THEN statements:p ELSE statements:s ENDIF {:RESULT = new If(e, p, s);:}
+| IF expr:e THEN statements:s elifs:f ENDIF {:RESULT = new If(e, s, f, null);:}
+| IF expr:e THEN statements:s elifs:f ELSE statements:p ENDIF {:RESULT = new If(e, s, f, p);:};
+
+for ::= FOR ID:i ARROW expr:e TO expr:f DO statements:s ENDFOR {:RESULT = new For(i, e, f, s);:}
+| FOR ID:i ARROW expr:e TO expr:f WITHINCREMENTAL NUM:n DO statements:s ENDFOR {:RESULT = new For(i, e, f, n, s);:}
+| FOR ID:i ARROW expr:e TO expr:f DO ENDFOR {:RESULT = new For(i, e, f);:}
+| FOR ID:i ARROW expr:e TO expr:f WITHINCREMENTAL NUM:n DO ENDFOR {:RESULT = new For(i, e, f, n);:};
+
+params_list ::= params_list:p COMMA ID:i TYPEDEF:t {:RESULT = p; RESULT.add(new Param(i, t));:}
+| ID:i TYPEDEF:t {:RESULT = new LinkedList<Param>(); RESULT.add(new Param(i, t));:};
+
+args_list ::= args_list:a COMMA expr:e {:RESULT = a; RESULT.add(e);:}
+| expr:e {:RESULT = new LinkedList<Operation>(); RESULT.add(e);:};
+
+name_list ::= name_list:n COMMA ID:i {:RESULT = n; RESULT.add(i);:}
+| ID:i {:RESULT = new LinkedList<String>(); RESULT.add(i);:};
+
+func ::= ID:f PARSTART PAREND {:RESULT = new Execute(f);:}
+| ID:f PARSTART args_list:a PAREND {:RESULT = new Execute(f, a);:};
+
+elifs ::= elifs:f ELIF expr:e THEN statements:s {:RESULT = f; RESULT.add(new Elif(e, s));:}
+| ELIF expr:e THEN statements:s {:RESULT = new LinkedList<Elif>(); RESULT.add(new Elif(e, s));:};
+
+cases ::= cases:c OPENQUESTION expr:e CLOSEQUESTION THEN statements:s {:RESULT = c; RESULT.add(new Case(e, s));:}
+| OPENQUESTION expr:e CLOSEQUESTION THEN statements:s {:RESULT = new LinkedList<Case>(); RESULT.add(new Case(e, s));:};
+
+expr ::= symbols:s {:RESULT = s;:}
+| unitary:u {:RESULT = u;:}
+| aritmetic:a {:RESULT = a;:}
+| logical:l {:RESULT = l;:}
+| PARSTART expr:e PAREND {:RESULT = new Operation(e);:};
+
+aritmetic ::= expr:a ADD expr:b {:RESULT = new Operation(a, EnumOperations.ADD, b);:}
+| expr:a SUBSTRACT expr:b {:RESULT = new Operation(a, EnumOperations.SUBSTRACT, b);:}
+| expr:a MULTIPLY expr:b {:RESULT = new Operation(a, EnumOperations.MULTIPLY, b);:}
+| expr:a DIVISION expr:b {:RESULT = new Operation(a, EnumOperations.DIVISION, b);:}
+| expr:a POW SBRACKETOPEN expr:b SBRACKETCLOSE {:RESULT = new Operation(a, EnumOperations.POW, b);:}
+| expr:a MODULE SBRACKETOPEN expr:b SBRACKETCLOSE {:RESULT = new Operation(a, EnumOperations.MODULE, b);:}
+| NUM:n {:RESULT = new Operation(n, EnumTerminals.NUM);:};
+
+logical ::= expr:a MAJOR expr:b {:RESULT = new Operation(a, EnumOperations.MAJOR, b);:}
+| expr:a MINOR expr:b {:RESULT = new Operation(a, EnumOperations.MINOR, b);:}
+| expr:a MAJOREQUALS expr:b {:RESULT = new Operation(a, EnumOperations.MAJOREQUALS, b);:}
+| expr:a MINOREQUALS expr:b {:RESULT = new Operation(a, EnumOperations.MINOREQUALS, b);:}
+| expr:a EQUALS expr:b {:RESULT = new Operation(a, EnumOperations.EQUALS, b);:}
+| expr:a NOTEQUALS expr:b {:RESULT = new Operation(a, EnumOperations.NOTEQUALS, b);:}
+| expr:a AND expr:b {:RESULT = new Operation(a, EnumOperations.AND, b);:}
+| expr:a OR expr:b {:RESULT = new Operation(a, EnumOperations.OR, b);:}
+| BOOLEAN:b {:RESULT = new Operation(b, EnumTerminals.BOOLEAN);:};
+
+symbols ::= ID:i {:RESULT = new Operation(i, EnumTerminals.ID);:}
+| STR:s {:RESULT = new Operation(s, EnumTerminals.STR);:}
+| CHAR:c {:RESULT = new Operation(c, EnumTerminals.CHAR);:};
+
+unitary ::= SUBSTRACT expr:e {:RESULT = new Operation(e, EnumUnitaryOperations.NEGATIVE);:}
+| NOT expr:e {:RESULT = new Operation(e, EnumUnitaryOperations.NOT);:};
